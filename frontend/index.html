@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Afterword</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <h1>Afterword</h1>
+        <p class="tagline">Record a meeting, get notes on your Desktop.</p>
+      </header>
+
+      <section class="controls">
+        <button id="record-btn" class="btn primary">Record</button>
+        <button id="stop-btn" class="btn danger" disabled>Stop</button>
+      </section>
+
+      <section class="status-panel">
+        <div id="status-line" class="status-line">Ready</div>
+        <div id="timer" class="timer">00:00:00</div>
+        <div id="chunk-info" class="chunk-info"></div>
+      </section>
+
+      <section id="result-panel" class="result-panel hidden">
+        <h2>Meeting complete</h2>
+        <p id="result-title"></p>
+        <p id="result-files"></p>
+        <pre id="result-preview"></pre>
+      </section>
+
+      <section id="error-panel" class="error-panel hidden">
+        <p id="error-message"></p>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

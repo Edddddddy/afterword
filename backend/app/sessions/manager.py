@@ -13,10 +13,30 @@ logger = logging.getLogger(__name__)
 TRANSCRIPT_DELIMITER = "\n\n---\n\n"
 METADATA_FILE = "metadata.json"
 TRANSCRIPT_FILE = "transcript.txt"
+ALLOWED_CHUNK_EXTENSIONS = frozenset({"webm", "mp4", "ogg"})
 
 
 class SessionError(Exception):
     pass
+
+
+def normalize_chunk_extension(extension: str) -> str:
+    ext = extension.lstrip(".").lower()
+    if not ext:
+        return "webm"
+    if ext not in ALLOWED_CHUNK_EXTENSIONS:
+        raise SessionError(
+            "Unsupported audio extension "
+            f"{ext!r}. Allowed: {', '.join(sorted(ALLOWED_CHUNK_EXTENSIONS))}"
+        )
+    return ext
+
+
+def _chunk_path_within_session(session_dir: Path, chunk_path: Path) -> None:
+    try:
+        chunk_path.resolve().relative_to(session_dir.resolve())
+    except ValueError as exc:
+        raise SessionError("Invalid chunk path") from exc
 
 
 class SessionManager:
@@ -90,13 +110,15 @@ class SessionManager:
             raise SessionError(
                 f"Chunk exceeds maximum size of {settings.max_chunk_bytes} bytes"
             )
-        safe_ext = extension.lstrip(".").lower() or "webm"
+        safe_ext = normalize_chunk_extension(extension)
+        session_dir = self.session_path(session_id)
         if chunk_path is None:
             metadata = self.read_metadata(session_id)
             chunk_number = metadata["chunks_received"] + 1
-            path = self.session_path(session_id) / f"chunk_{chunk_number:03d}.{safe_ext}"
+            path = session_dir / f"chunk_{chunk_number:03d}.{safe_ext}"
         else:
             path = chunk_path
+        _chunk_path_within_session(session_dir, path)
         path.write_bytes(data)
         metadata = self.read_metadata(session_id)
         self.update_metadata(
@@ -104,6 +126,19 @@ class SessionManager:
             chunks_received=metadata["chunks_received"] + 1,
         )
         return path
+
+    def rollback_chunk(self, session_id: str, chunk_path: Path) -> None:
+        session_dir = self.session_path(session_id)
+        _chunk_path_within_session(session_dir, chunk_path)
+        resolved = chunk_path.resolve()
+        if resolved.exists():
+            resolved.unlink()
+        metadata = self.read_metadata(session_id)
+        if metadata["chunks_received"] > 0:
+            self.update_metadata(
+                session_id,
+                chunks_received=metadata["chunks_received"] - 1,
+            )
 
     def append_transcript(self, session_id: str, text: str) -> None:
         text = text.strip()
@@ -125,11 +160,6 @@ class SessionManager:
 
     def transcript_length(self, session_id: str) -> int:
         return len(self.read_transcript(session_id))
-
-    def cleanup_session(self, session_id: str) -> None:
-        path = self.session_path(session_id)
-        if path.exists():
-            shutil.rmtree(path)
 
     def sweep_orphaned_sessions(self) -> int:
         cutoff = datetime.now(timezone.utc).timestamp() - (

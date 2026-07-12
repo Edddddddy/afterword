@@ -1,12 +1,12 @@
 # Afterword
 
-Local meeting recorder for **macOS**. Record via microphone, transcribe with OpenAI Whisper, summarize with GPT 5.2, and save markdown notes plus a separate transcript to your Desktop.
+Local meeting recorder for **macOS**. Record via microphone, transcribe with OpenAI Whisper, summarize with GPT 5.2, and save markdown notes plus a separate transcript to `.afterword/output`.
 
 ## Requirements
 
 - macOS with Chrome or Safari
 - Python 3.11+
-- Node.js 18+
+- Node.js 18+ and pnpm
 - OpenAI API key
 
 ## Setup
@@ -24,7 +24,7 @@ cp .env.example .env
 
 # Frontend
 cd frontend
-npm install
+pnpm install
 cd ..
 ```
 
@@ -42,10 +42,10 @@ Terminal 2 — frontend:
 
 ```bash
 cd frontend
-npm run dev
+pnpm run dev
 ```
 
-Open http://localhost:5173, click **Record**, speak, then **Stop**. Summary and transcript files appear on `~/Desktop`.
+Open http://localhost:5173, click **Record**, speak, then **Stop**. Summary and transcript files appear in `.afterword/output`.
 
 ## macOS microphone permissions
 
@@ -60,8 +60,9 @@ See `.env.example`. Key settings:
 | `OPENAI_API_KEY` | — | Required for production |
 | `OPENAI_SUMMARY_MODEL` | `gpt-5.2` | Summarization model |
 | `CHUNK_INTERVAL_SECONDS` | `1800` | Upload/transcribe every 30 min |
-| `OUTPUT_DIR` | `~/Desktop` | Where markdown files are saved |
-| `SESSION_DIR` | `~/.afterword/sessions` | Temp session storage |
+| `OUTPUT_DIR` | `.afterword/output` | Where markdown files are saved (project root) |
+| `SESSION_DIR` | `.afterword/sessions` | Session storage — audio chunks and working transcript (project root) |
+| `SESSION_TTL_HOURS` | `24` | Remove sessions older than this on startup |
 
 For automated tests without OpenAI, set `TRANSCRIPTION_PROVIDER=mock` and `SUMMARIZATION_PROVIDER=mock`.
 

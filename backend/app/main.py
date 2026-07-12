@@ -95,6 +95,7 @@ async def _process_chunk(
             detail=f"Chunk exceeds {settings.max_chunk_bytes} byte limit",
         )
 
+    chunk_path: Path | None = None
     try:
         chunk_path = session_manager.save_chunk(session_id, data, extension=extension)
         text = await transcription_provider.transcribe(chunk_path)
@@ -105,6 +106,11 @@ async def _process_chunk(
     except SessionError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
+        if chunk_path is not None:
+            try:
+                session_manager.rollback_chunk(session_id, chunk_path)
+            except SessionError:
+                logger.exception("Failed to rollback chunk for session %s", session_id)
         logger.exception("Transcription failed for session %s", session_id)
         raise HTTPException(status_code=502, detail="Transcription failed") from exc
 
@@ -141,6 +147,22 @@ async def upload_chunk(
     return await _process_chunk(session_id, data, extension=extension)
 
 
+def _stop_response_from_metadata(metadata: dict) -> dict:
+    transcript_path = metadata.get("transcript_file")
+    summary_path = metadata.get("summary_file")
+    response = {
+        "title": metadata.get("title"),
+        "summaryFile": Path(summary_path).name if summary_path else None,
+        "summaryPath": summary_path,
+        "transcriptFile": Path(transcript_path).name if transcript_path else None,
+        "transcriptPath": transcript_path,
+        "preview": "",
+    }
+    if metadata.get("error"):
+        response["error"] = metadata["error"]
+    return response
+
+
 @app.post("/api/sessions/{session_id}/stop")
 async def stop_session(
     session_id: str,
@@ -153,6 +175,19 @@ async def stop_session(
         metadata = session_manager.read_metadata(session_id)
     except SessionError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    state = metadata.get("state")
+    if state == SessionState.COMPLETE.value:
+        return _stop_response_from_metadata(metadata)
+    if state == SessionState.ERROR.value:
+        if metadata.get("transcript_file"):
+            return _stop_response_from_metadata(metadata)
+        raise HTTPException(
+            status_code=400,
+            detail="No speech detected. Try recording again closer to the microphone.",
+        )
+    if state == SessionState.PROCESSING.value:
+        raise HTTPException(status_code=409, detail="Session is already being finalized")
 
     session_manager.update_metadata(session_id, state=SessionState.PROCESSING.value)
 
@@ -223,8 +258,6 @@ async def stop_session(
             transcript_file=str(transcript_path),
             error=f"Summarization failed: {summary_error}",
         )
-
-    session_manager.cleanup_session(session_id)
 
     if summary_result is None:
         return {

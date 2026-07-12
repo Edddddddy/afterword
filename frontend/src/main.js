@@ -218,8 +218,8 @@ function showResult(data) {
   }
   resultTitle.textContent = data.title ? `Title: ${data.title}` : "Summary unavailable";
   resultFiles.textContent = [
-    data.summaryFile ? `Summary: ~/Desktop/${data.summaryFile}` : null,
-    data.transcriptFile ? `Transcript: ~/Desktop/${data.transcriptFile}` : null,
+    data.summaryPath ? `Summary: ${data.summaryPath}` : null,
+    data.transcriptPath ? `Transcript: ${data.transcriptPath}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -310,7 +310,7 @@ async function stopRecording() {
     setStatus("Uploading final chunk and generating notes…");
     const result = await finalizeSession(finalBlob);
     showResult(result);
-    setStatus("Done — files saved to Desktop");
+    setStatus("Done — files saved to output folder");
   } catch (error) {
     setError(error.message || "Processing failed");
     setStatus("Processing failed");
